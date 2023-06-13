@@ -7,9 +7,19 @@ import numpy as np
 
 def read_files_from_dir(directory: Path):
     extensions = ["edf", "bdf"]
+    files = []
 
-    return [(Path(file.path), pyedflib.highlevel.read_edf(file.path)) for file in os.scandir(directory) 
-            if file.is_file() and file.name.endswith(tuple(extensions))]
+    for file in os.scandir(directory):
+        if file.is_file() and file.name.endswith(tuple(extensions)):
+            filepath = file.path
+            signals, signal_headers, header = pyedflib.highlevel.read_edf(filepath)
+            file = {"filepath": filepath,
+            "signals": signals,
+            "signal_headers": signal_headers,
+            "header": header}
+            files.append(file)
+            
+    return files
 
 def save_filtered_file(file: Path, filtered_signals: np.ndarray, output_path: str="data/filtered/"):
     _, signal_headers, header = pyedflib.highlevel.read_edf(file.absolute().as_posix())
