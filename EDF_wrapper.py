@@ -21,8 +21,12 @@ def read_files_from_dir(directory: Path):
             
     return files
 
-def save_filtered_file(file: Path, filtered_signals: np.ndarray, output_path: str="data/filtered/"):
-    _, signal_headers, header = pyedflib.highlevel.read_edf(file.absolute().as_posix())
+def save_edf_file(file, output_path: str="data/filtered/"):
+    filepath = Path(file["filepath"])
+    # Make sure the physical boundaries are set properly
+    for signal, header in zip(file["signals"], file["signal_headers"]):
+        header["'physical_max'"] = signal.max()
+        header["'physical_min'"] = signal.min()
     
-    return pyedflib.highlevel.write_edf(output_path + file.stem, filtered_signals,
-                                        signal_headers, header, digital=False)
+    return pyedflib.highlevel.write_edf(output_path + filepath.stem + filepath.suffix, file["signals"],
+                                        file["signal_headers"], file["header"], digital=False)
