@@ -5,18 +5,27 @@ import os
 import numpy as np
 
 
-def read_files_from_dir(directory: Path):
+def read_files_from_dir(directory: Path, load_files:bool=True):
     extensions = ["edf", "bdf"]
     files = []
 
     for file in os.scandir(directory):
-        if file.is_file() and file.name.endswith(tuple(extensions)):
+        
+        if load_files:
+            if file.is_file() and file.name.endswith(tuple(extensions)):
+                filepath = file.path
+                signals, signal_headers, header = pyedflib.highlevel.read_edf(filepath)
+                file = {"filepath": filepath,
+                "signals": signals,
+                "signal_headers": signal_headers,
+                "header": header}
+                files.append(file)
+        else:
             filepath = file.path
-            signals, signal_headers, header = pyedflib.highlevel.read_edf(filepath)
             file = {"filepath": filepath,
-            "signals": signals,
-            "signal_headers": signal_headers,
-            "header": header}
+                "signals": None,
+                "signal_headers": None,
+                "header": None}
             files.append(file)
             
     return files
