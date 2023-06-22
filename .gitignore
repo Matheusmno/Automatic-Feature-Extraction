@@ -161,6 +161,8 @@ cython_debug/
 # Data files
 data/
 notebooks/
+SwallowDetection/
+SwallowDetection_edited/
 *.bdf
 *.edf
 

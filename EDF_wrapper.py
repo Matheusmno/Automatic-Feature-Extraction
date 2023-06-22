@@ -11,8 +11,8 @@ def read_files_from_dir(directory: Path, load_files:bool=True):
 
     for file in os.scandir(directory):
         
-        if load_files:
-            if file.is_file() and file.name.endswith(tuple(extensions)):
+        if file.is_file() and file.name.endswith(tuple(extensions)):
+            if load_files:
                 filepath = file.path
                 signals, signal_headers, header = pyedflib.highlevel.read_edf(filepath)
                 file = {"filepath": filepath,
@@ -20,14 +20,14 @@ def read_files_from_dir(directory: Path, load_files:bool=True):
                 "signal_headers": signal_headers,
                 "header": header}
                 files.append(file)
-        else:
-            filepath = file.path
-            file = {"filepath": filepath,
-                "signals": None,
-                "signal_headers": None,
-                "header": None}
-            files.append(file)
-            
+            else:
+                filepath = file.path
+                file = {"filepath": filepath,
+                    "signals": None,
+                    "signal_headers": None,
+                    "header": None}
+                files.append(file)
+                
     return files
 
 def save_edf_file(file, output_path: str="data/filtered/"):
