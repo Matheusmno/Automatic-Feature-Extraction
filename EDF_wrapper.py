@@ -34,8 +34,12 @@ def save_edf_file(file, output_path: str="data/filtered/"):
     filepath = Path(file["filepath"])
     # Make sure the physical boundaries are set properly
     for signal, header in zip(file["signals"], file["signal_headers"]):
-        header['physical_max'] = signal.max()
-        header['physical_min'] = signal.min()
+        if signal.min() != signal.max():
+            header['physical_max'] = signal.max()
+            header['physical_min'] = signal.min()
+        else:
+            header['physical_max'] = signal.min() + 1 
+            header['physical_min'] = signal.min()
     
     return pyedflib.highlevel.write_edf(output_path + filepath.stem + filepath.suffix, file["signals"],
                                         file["signal_headers"], file["header"], digital=False)

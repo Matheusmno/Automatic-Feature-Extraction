@@ -1,3 +1,24 @@
+import re
+
+def check_annotations(file: dict) -> bool:
+    match_pattern = r"[cspt]_\w+_(start|stop)"
+    annotations = file["header"]["annotations"]
+    
+    if any(map(lambda x : not re.match(match_pattern, x[-1]), annotations)):
+        pattern_mismatches = [i for i, val in enumerate(map(lambda x : re.match(match_pattern, x[-1]), annotations)) if val is None]
+        print(f"There are {len(pattern_mismatches)} annotations out of the pattern.")
+        #for idx in pattern_mismatches:
+        #    print(idx, file["header"]["annotations"][idx])
+    
+    if not annotations:
+        print("There are no annotations in the file.")
+        return False
+    
+    elif check_C_annotations(list(filter(lambda x : re.match(r"c_\w+_\w+", x[-1]), annotations))):
+        if check_T_annotations(list(filter(lambda x : re.match(r"[spt]_", x[-1]), annotations))):
+            return True
+    return False
+
 def ann_time_to_string(time_seconds):
 
     time = time_seconds
