@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 
 def get_swallow_annotations(edf_file):
 
-    ini_file = "/Users/matheusnoschang/Programming/Repos/Automatic-Feature-Extraction/SwallowDetection/feature_calculation_params_set8.ini"
+    ini_file = "SwallowDetection/feature_calculation_params_set8.ini"
 
     sample_rate = 4000
     only_sax = False
