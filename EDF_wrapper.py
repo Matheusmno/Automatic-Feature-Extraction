@@ -1,5 +1,4 @@
 import pyedflib
-import plotly.express as px
 from pathlib import Path
 import os
 import numpy as np
@@ -31,6 +30,7 @@ def read_files_from_dir(directory: Path, load_files:bool=True):
     return files
 
 def save_edf_file(file, output_path: str="data/filtered/"):
+    #os.makedirs(output_path, exist_ok=True)
     filepath = Path(file["filepath"])
     # Make sure the physical boundaries are set properly
     for signal, header in zip(file["signals"], file["signal_headers"]):
