@@ -1,6 +1,6 @@
 import sys
-sys.path.insert(1, 'SwallowDetection')
-from FeatureCalculator import FeatureCalculator
+#sys.path.insert(1, 'SwallowDetection')
+from SwallowDetection.FeatureCalculator import FeatureCalculator
 from sklearn import preprocessing
 import joblib
 import pandas as pd

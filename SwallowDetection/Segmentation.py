@@ -3,7 +3,7 @@ import pyedflib
 import scipy.signal
 import pandas as pd
 import math
-from Filter import Filter
+from SwallowDetection.Filter import Filter
 import matplotlib.pyplot as plt
 
 

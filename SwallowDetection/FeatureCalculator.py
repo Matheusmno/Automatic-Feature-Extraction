@@ -1,8 +1,8 @@
 import pandas as pd
 import numpy as np
-from Segmentation import Segmentation
-from SAXConverter import SAXConverter
-from Filter import Filter
+from SwallowDetection.Segmentation import Segmentation
+from SwallowDetection.SAXConverter import SAXConverter
+from SwallowDetection.Filter import Filter
 import math
 import configparser
 import os
