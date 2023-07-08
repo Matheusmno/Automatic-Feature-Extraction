@@ -1,5 +1,6 @@
 from SwallowDetection.SwallowAnntations import get_swallow_annotations
 import EDF_wrapper
+import annotations_validation as av
 import os
 import numpy as np
 from pathlib import Path
@@ -8,7 +9,7 @@ import pandas as pd
 
 from tsfresh import extract_features
 from tsfresh.utilities.dataframe_functions import impute
-
+from tsfresh.feature_extraction import EfficientFCParameters, MinimalFCParameters
 
 def add_swallow_annotations(file, output_path:str="data/annotated/"):
     
@@ -75,9 +76,9 @@ def crop_signals_array(start_time, stop_time, file):
 def create_annotations_df(file, df_type='general', fileList=False):
 
     if df_type == 'general':
-        match_pattern = "[ctp]_"
+        match_pattern = "[ctp]_([^\s_]+)_(start|stop)"
     else:
-        match_pattern = "[cs]_"
+        match_pattern = "[cs]_([^\s_]+)_(start|stop)"
 
     general = list(filter(lambda x : re.match(match_pattern, x[-1]), file["header"]["annotations"]))
 
@@ -85,7 +86,7 @@ def create_annotations_df(file, df_type='general', fileList=False):
             "start_time": [], "stop_time": [],
              }
     
-    signal_rows = {"id": [],
+    signal_rows = {"ann_id": [],
              "data_label": [],
              "time": [],
              "signal": []
@@ -120,7 +121,7 @@ def create_annotations_df(file, df_type='general', fileList=False):
                     id_rows["stop_time"].append(stop_time)
                     
                     for h, sigs in signals:
-                        signal_rows["id"].append(id)
+                        signal_rows["ann_id"].append(id)
                         signal_rows["data_label"].append(h['label'])
                         signal_rows["time"].append(sigs[0])
                         signal_rows["signal"].append(sigs[1])
@@ -129,25 +130,75 @@ def create_annotations_df(file, df_type='general', fileList=False):
     
     signals_df = pd.DataFrame(signal_rows)
     
-    df = main_df.merge(signals_df, left_index=True, right_on='id')
+    df = main_df.merge(signals_df, left_index=True, right_on='ann_id')
      
     return df
 
-def extract_features_from_annotations(annotations_df, extraction_settings):
-    annotations_df_1NF = annotations_df.explode(['time', 'signal'])
-    annotations_df_1NF['id'] = annotations_df_1NF.index
-
-    # Cast columns to meet tsFRESH's requirements
-    annotations_df_1NF["time"] = annotations_df_1NF["time"].astype(float)
-    annotations_df_1NF["signal"] = annotations_df_1NF["signal"].astype(float)
-
-    X = extract_features(annotations_df_1NF, column_id='id', column_sort='time',
-                     column_kind=None, column_value='signal',
-                     default_fc_parameters=extraction_settings,
-                     impute_function=impute
-                     )
+def extract_features_from_annotations(annotations_df):
     
-    df = annotations_df.merge(X, left_on='id', right_index=True)
-    df.drop(['id', 'time', 'signal'], axis=1, inplace=True)
+    extraction_settings = EfficientFCParameters()
+    
+    del extraction_settings['index_mass_quantile']
+    del extraction_settings['time_reversal_asymmetry_statistic']
+    del extraction_settings['cid_ce']
+    del extraction_settings['symmetry_looking']
+    del extraction_settings['agg_autocorrelation']
+    del extraction_settings['cwt_coefficients']
+    del extraction_settings['spkt_welch_density']
+    del extraction_settings['ar_coefficient']
+    del extraction_settings['change_quantiles']
+    del extraction_settings['fft_coefficient']
+    del extraction_settings['fft_aggregated']
+    del extraction_settings['agg_linear_trend']
+    del extraction_settings['augmented_dickey_fuller']
+    del extraction_settings['ratio_beyond_r_sigma']
+    del extraction_settings['fourier_entropy']
+    del extraction_settings['permutation_entropy']
+    del extraction_settings['lempel_ziv_complexity']
+    del extraction_settings['query_similarity_count']
+    del extraction_settings['number_crossing_m']
+    del extraction_settings['large_standard_deviation']
+    extraction_settings['quantile'] = extraction_settings['quantile'][-2:]
+    
+    if not annotations_df.empty:
+        annotations_df_1NF = annotations_df.explode(['time', 'signal'])
+
+        # Cast columns to meet tsFRESH's requirements
+        annotations_df_1NF["time"] = annotations_df_1NF["time"].astype(float)
+        annotations_df_1NF["signal"] = annotations_df_1NF["signal"].astype(float)
+
+        X = extract_features(annotations_df_1NF, column_id='ann_id', column_sort='time',
+                        column_kind=None, column_value='signal',
+                        default_fc_parameters=extraction_settings,
+                        impute_function=impute
+                        )
+
+        df = annotations_df.merge(X, left_index=True, right_index=True) # Join annotations with extracted features
+        df.drop(['time', 'signal'], axis=1, inplace=True)
+    else:
+        print("The annotations dataframe is empty.")
+        return None
 
     return df
+
+
+def get_directory_features_excel_files(file_list, output_path="data/xlsx/"):
+
+    dir_general_features = pd.DataFrame()
+    dir_swallow_features = pd.DataFrame()
+
+    for edf_file in file_list:
+        if av.check_annotations(edf_file):
+            general_df_fe = extract_features_from_annotations(create_annotations_df(edf_file, 'general'))
+            swallows_df_fe = extract_features_from_annotations(create_annotations_df(edf_file, 'swallows'))
+            if general_df_fe is not None:
+                dir_general_features = pd.concat([dir_general_features, general_df_fe], axis=0)
+                #general_df_fe.to_excel(f"data/xlsx/{Path(edf_file['filepath']).stem}_general_features.xlsx", index=False)
+            if swallows_df_fe is not None:
+                dir_swallow_features = pd.concat([dir_swallow_features, swallows_df_fe], axis=0)
+                #swallows_df_fe.to_excel(f"data/xlsx/{Path(edf_file['filepath']).stem}_swallow_features.xlsx", index=False)
+
+    if not dir_general_features.empty:
+        dir_general_features.to_excel(output_path + "directory_general_features.xlsx", index=False)
+    if not dir_swallow_features.empty:
+        dir_swallow_features.to_excel(output_path + "directory_swallow_features.xlsx", index=False)
