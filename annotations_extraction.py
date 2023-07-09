@@ -134,7 +134,75 @@ def create_annotations_df(file, df_type='general', fileList=False):
      
     return df
 
-def extract_features_from_annotations(annotations_df):
+def swallow_extend(row):
+    time_start_idx = np.argwhere(row['time'] == row['BI_start_time'])[0][0]
+    time_end_idx = np.argwhere(row['time'] == row['BI_min'])[0][0]
+    if 'BI' in row['data_label']:
+        return np.trapz(row['signal'][time_start_idx:time_end_idx+1], row['time'][time_start_idx:time_end_idx+1])
+    else:
+        return np.nan
+    
+def area_under_EMG_envelope(row):
+    time_start_idx = np.argwhere(row['time'] == row['BI_start_time'])[0][0]
+    time_end_idx = np.argwhere(row['time'] == row['BI_min'])[0][0]
+    if 'EMG' in row['data_label']:
+        return np.trapz(row['signal'][time_start_idx:time_end_idx+1], row['time'][time_start_idx:time_end_idx+1])
+    else:
+        return np.nan
+
+def add_basic_swallow_features(swallows_df):  
+    # Swallow basic features
+    if not swallows_df.empty:
+        swallows_df['BI_start_time'] = swallows_df.apply(lambda row : row['time'][0] if 'BI' in row['data_label'] else np.nan, axis=1)
+        swallows_df['BI_start_time'] = swallows_df.groupby('ann_id')['BI_start_time'].transform('first') # Fill values for all signals belonging to the same annotation
+
+        #swallows_df['EMG_start_time'] = swallows_df['BI_start_time'] - 0.366
+        swallows_df['BI_stop_time'] = swallows_df.apply(lambda row : row['time'][-1] if 'BI' in row['data_label'] else np.nan, axis=1)
+        swallows_df['BI_stop_time'] = swallows_df.groupby('ann_id')['BI_stop_time'].transform('first') # Fill values for all signals belonging to the same annotation
+
+        swallows_df['BI_min'] = swallows_df.apply(lambda row : row['time'][row['signal'].argmin()] if 'BI' in row['data_label'] else np.nan, axis=1)
+        swallows_df['BI_min'] = swallows_df.groupby('ann_id')['BI_min'].transform('first') # Fill values for all signals belonging to the same annotation
+
+        swallows_df['elevation_duration'] = swallows_df['BI_min'] - swallows_df['BI_start_time']
+
+        swallows_df['elevation'] = swallows_df.apply(lambda row : row['signal'][0] - row['signal'][row['signal'].argmin()] if 'BI' in row['data_label'] else np.nan, axis=1)
+        swallows_df['elevation'] = swallows_df.groupby('ann_id')['elevation'].transform('first') # Fill values for all signals belonging to the same annotation
+
+        swallows_df['elevation_speed'] = swallows_df.apply(lambda row : (row['signal'][0] - row['signal'][row['signal'].argmin()])/(row['time'][0] - row['time'][row['signal'].argmin()]) if 'BI' in row['data_label'] else np.nan, axis=1)
+        swallows_df['elevation_speed'] = swallows_df.groupby('ann_id')['elevation_speed'].transform('first') # Fill values for all signals belonging to the same annotation
+
+        swallows_df['swallow_duration'] = swallows_df['BI_stop_time'] - swallows_df['BI_start_time']
+
+        swallows_df['swallow_extend'] = swallows_df.apply(swallow_extend, axis=1)
+        swallows_df['swallow_extend'] = swallows_df.groupby('ann_id')['swallow_extend'].transform('first') # Fill values for all signals belonging to the same annotation
+
+        # Check why negative values
+        swallows_df['area_under_EMG_envelope'] = swallows_df.apply(area_under_EMG_envelope, axis=1)
+
+        swallows_df['signal_area'] = swallows_df.apply(lambda row : np.trapz(row['signal'], row['time']), axis=1)
+        return swallows_df
+    
+    else:    
+        print("The annotations dataframe is empty.")
+        return pd.DataFrame()
+
+def add_basic_general_features(general_df):
+    # General basic features
+    if not general_df.empty:
+        general_df['span'] = general_df.apply(lambda row : row['signal'].max() - row['signal'].min(), axis=1)
+        general_df['area'] = general_df.apply(lambda row : np.trapz(row['signal'], row['time']), axis=1)
+        general_df['duration'] = general_df['stop_time'] - general_df['start_time']
+        general_df['start_value'] = general_df['signal'][0]
+        general_df['stop_value'] = general_df['signal'][-1]
+        general_df['span_start_stop_value'] = general_df['start_value'] - general_df['stop_value']
+        general_df['IQR'] = general_df.apply(lambda row : np.subtract(*np.percentile(row['signal'], [75, 25])))
+        return general_df
+    else:
+        print("The annotations dataframe is empty.")
+        return pd.DataFrame()
+                
+
+def add_tsfresh_features(annotations_df):
     
     extraction_settings = EfficientFCParameters()
     
@@ -175,22 +243,26 @@ def extract_features_from_annotations(annotations_df):
 
         df = annotations_df.merge(X, left_index=True, right_index=True) # Join annotations with extracted features
         df.drop(['time', 'signal'], axis=1, inplace=True)
+        return df
     else:
         print("The annotations dataframe is empty.")
-        return None
 
-    return df
+    
 
 
-def get_directory_features_excel_files(file_list, output_path="data/xlsx/"):
+def save_directory_features_excel_files(file_list, output_path="data/xlsx/"):
 
     dir_general_features = pd.DataFrame()
     dir_swallow_features = pd.DataFrame()
 
     for edf_file in file_list:
         if av.check_annotations(edf_file):
-            general_df_fe = extract_features_from_annotations(create_annotations_df(edf_file, 'general'))
-            swallows_df_fe = extract_features_from_annotations(create_annotations_df(edf_file, 'swallows'))
+            general_df = create_annotations_df(edf_file, 'general')
+            general_df_fe = add_basic_general_features(general_df)
+            general_df_fe = add_tsfresh_features(general_df_fe)
+            swallows_df = create_annotations_df(edf_file, 'swallows')
+            swallows_df_fe = add_basic_swallow_features(swallows_df)
+            swallows_df_fe = add_tsfresh_features(swallows_df_fe)
             if general_df_fe is not None:
                 dir_general_features = pd.concat([dir_general_features, general_df_fe], axis=0)
                 #general_df_fe.to_excel(f"data/xlsx/{Path(edf_file['filepath']).stem}_general_features.xlsx", index=False)
