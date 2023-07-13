@@ -1,7 +1,7 @@
 import re
 
 def check_annotations(file: dict) -> bool:
-    match_pattern = r"[cspt]_\w+_(start|stop)"
+    match_pattern = r"[ctps]_([^\s_]+)_(start|stop)"
     annotations = file["header"]["annotations"]
     
     if any(map(lambda x : not re.match(match_pattern, x[-1]), annotations)):

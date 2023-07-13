@@ -92,7 +92,7 @@ def create_annotations_df(file, df_type='general', fileList=False):
              "signal": []
              }
     
-    cat = '-'
+    cat = ""
     id = -1
     for i, row in enumerate(general):
         time, _, desc = row
@@ -103,7 +103,7 @@ def create_annotations_df(file, df_type='general', fileList=False):
             if event == "start":
                 _, cat, _ = s
             else:
-                cat = '-'
+                cat = ""
             
         else:
             if event == "start":
@@ -111,6 +111,22 @@ def create_annotations_df(file, df_type='general', fileList=False):
                 stop_time, _, _ = find_first_element(general[i:], lambda x: x[-1] == f"{t}_{sample}_stop")
                 if not fileList:
                     id += 1
+                    signals = crop_signals_array(start_time, stop_time, file)
+                                            
+                    id_rows["set"].append(1)
+                    id_rows["subject"].append(Path(file["filepath"]).stem)
+                    id_rows["category"].append(cat)
+                    id_rows["sample_name"].append(s[1])
+                    id_rows["start_time"].append(start_time)
+                    id_rows["stop_time"].append(stop_time)
+                    
+                    for h, sigs in signals:
+                        signal_rows["ann_id"].append(id)
+                        signal_rows["data_label"].append(h['label'])
+                        signal_rows["time"].append(sigs[0])
+                        signal_rows["signal"].append(sigs[1])
+                else:
+                    # IMPLEMENT FILELIST METHOD
                     signals = crop_signals_array(start_time, stop_time, file)
                                             
                     id_rows["set"].append(1)
@@ -178,8 +194,15 @@ def add_basic_swallow_features(swallows_df):
 
         # Check why negative values
         swallows_df['area_under_EMG_envelope'] = swallows_df.apply(area_under_EMG_envelope, axis=1)
+        swallows_df['area_under_EMG_envelope'] = swallows_df.groupby('ann_id')['area_under_EMG_envelope'].transform('first') # Fill values for all signals belonging to the same annotation
 
-        swallows_df['signal_area'] = swallows_df.apply(lambda row : np.trapz(row['signal'], row['time']), axis=1)
+
+        #swallows_df['signal_area'] = swallows_df.apply(lambda row : np.trapz(row['signal'], row['time']), axis=1)
+        
+        swallows_df = swallows_df.groupby('ann_id').first()
+        
+        swallows_df.drop(['start_time','stop_time','time','signal'], axis=1, inplace=True)
+        
         return swallows_df
     
     else:    
@@ -199,7 +222,7 @@ def add_basic_general_features(general_df):
         return general_df
     else:
         print("The annotations dataframe is empty.")
-        return pd.DataFrame()
+        return general_df
                 
 
 def add_tsfresh_features(annotations_df):
@@ -253,24 +276,37 @@ def add_tsfresh_features(annotations_df):
 def save_directory_features_excel_files(file_list, output_path="data/xlsx/"):
 
     dir_general_features = pd.DataFrame()
-    dir_swallow_features = pd.DataFrame()
+    dir_basic_swallow_features = pd.DataFrame()
+    dir_tsfresh_swallow_features = pd.DataFrame()
 
     for edf_file in file_list:
         if av.check_annotations(edf_file):
+            # Create general features excel file
             general_df = create_annotations_df(edf_file, 'general')
             general_df_fe = add_basic_general_features(general_df)
             general_df_fe = add_tsfresh_features(general_df_fe)
+            
+            # Create baisc swallow features and tsfresh features excel files
             swallows_df = create_annotations_df(edf_file, 'swallows')
-            swallows_df_fe = add_basic_swallow_features(swallows_df)
-            swallows_df_fe = add_tsfresh_features(swallows_df_fe)
+            basic_swallows_df_fe = add_basic_swallow_features(swallows_df.copy())
+            basic_swallows_df_fe = basic_swallows_df_fe
+            ts_fresh_swallows_df_fe = add_tsfresh_features(swallows_df)
             if general_df_fe is not None:
                 dir_general_features = pd.concat([dir_general_features, general_df_fe], axis=0)
                 #general_df_fe.to_excel(f"data/xlsx/{Path(edf_file['filepath']).stem}_general_features.xlsx", index=False)
-            if swallows_df_fe is not None:
-                dir_swallow_features = pd.concat([dir_swallow_features, swallows_df_fe], axis=0)
-                #swallows_df_fe.to_excel(f"data/xlsx/{Path(edf_file['filepath']).stem}_swallow_features.xlsx", index=False)
+            if basic_swallows_df_fe is not None:
+                dir_basic_swallow_features = pd.concat([dir_basic_swallow_features, basic_swallows_df_fe], axis=0)
+                #swallows_df_fe.to_excel(f"data/xlsx/{Path(edf_file['filepath']).stem}_basic_swallow_features.xlsx", index=False)
+            if ts_fresh_swallows_df_fe is not None:
+                dir_tsfresh_swallow_features = pd.concat([dir_tsfresh_swallow_features, ts_fresh_swallows_df_fe], axis=0)
+                #swallows_df_fe.to_excel(f"data/xlsx/{Path(edf_file['filepath']).stem}_ts_fresh_swallow_features.xlsx", index=False)
 
     if not dir_general_features.empty:
-        dir_general_features.to_excel(output_path + "directory_general_features.xlsx", index=False)
-    if not dir_swallow_features.empty:
-        dir_swallow_features.to_excel(output_path + "directory_swallow_features.xlsx", index=False)
+        dir_general_features.drop(['ann_id'], axis=1, inplace=True)
+        dir_general_features.to_excel(output_path + "general_features.xlsx", index=False)
+    if not dir_basic_swallow_features.empty:
+        dir_basic_swallow_features.drop(['data_label'], axis=1, inplace=True)
+        dir_basic_swallow_features.to_excel(output_path + "basic_swallow_features.xlsx", index=False)
+    if not dir_tsfresh_swallow_features.empty:
+        dir_tsfresh_swallow_features.drop(['ann_id'], axis=1, inplace=True)
+        dir_tsfresh_swallow_features.to_excel(output_path + "tsfresh_swallow_features.xlsx", index=False)
