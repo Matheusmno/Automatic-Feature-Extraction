@@ -11,27 +11,27 @@ from tsfresh import extract_features
 from tsfresh.utilities.dataframe_functions import impute
 from tsfresh.feature_extraction import EfficientFCParameters, MinimalFCParameters
 
-def add_swallow_annotations(file, output_path:str="data/annotated/"):
+def add_swallow_annotations(f, output_path:str="data/annotated/"):
     
     try:
-        times, annotations = get_swallow_annotations(file['filepath'])
+        times, annotations = get_swallow_annotations(f['filepath'])
     except:
-        print(f"File {file['filepath']} failed to get swallow annotations.")
+        print(f"File {f['filepath']} failed to get swallow annotations.")
     
     os.makedirs(output_path, exist_ok=True)
 
     for time, annotation in zip(times, annotations):
-        file['header']['annotations'].append([time, -1, annotation])
+        f['header']['annotations'].append([time, -1, annotation])
         
-    file['header']['annotations'].sort(key=lambda x: x[0])
+    f['header']['annotations'].sort(key=lambda x: x[0])
     # Save edited edf file
-    EDF_wrapper.save_edf_file(file, output_path=output_path)
+    EDF_wrapper.save_edf_file(f, output_path=output_path)
     
 def add_swallow_annotations_to_files(files: list, output_path:str="data/annotated/"):
     
     # Extract annotations from signal
     ann = []    
-    for edf_file in np.asarray([file['filepath'] for file in files]):
+    for edf_file in np.asarray([f['filepath'] for f in files]):
         try:
             ann.append(get_swallow_annotations(edf_file))
         except:
@@ -39,14 +39,14 @@ def add_swallow_annotations_to_files(files: list, output_path:str="data/annotate
     
     os.makedirs(output_path, exist_ok=True)
     
-    for file, (times, annotations) in zip(files, ann):
+    for f, (times, annotations) in zip(files, ann):
         # Add extracted annotations to file's annotation list
         for time, annotation in zip(times, annotations):
-            file['header']['annotations'].append([time, -1, annotation])
+            f['header']['annotations'].append([time, -1, annotation])
             
-        file['header']['annotations'].sort(key=lambda x: x[0])
+        f['header']['annotations'].sort(key=lambda x: x[0])
         # Save edited edf file
-        EDF_wrapper.save_edf_file(file, output_path=output_path)
+        EDF_wrapper.save_edf_file(f, output_path=output_path)
         
 
 def compute_time(sampling_frequency, signal_array):
@@ -62,27 +62,27 @@ def find_first_element(list_data, condition):
                 return element
         return None
 
-def crop_signals_array(start_time, stop_time, file):
+def crop_signals_array(start_time, stop_time, f):
         cropped_signals = []
-        for channel, signal in enumerate(file["signals"]):
-            sr = file['signal_headers'][channel]['sample_rate']
+        for channel, signal in enumerate(f["signals"]):
+            sr = f['signal_headers'][channel]['sample_rate']
             start_idx = round(start_time * sr)
             stop_idx = round(stop_time * sr) + 1
             time_array = compute_time(sr, signal)
             cropped_signals.append((time_array[start_idx: stop_idx], np.array(signal[start_idx: stop_idx])))
             
-        return list(zip(file['signal_headers'], np.array(cropped_signals)))
+        return list(zip(f['signal_headers'], np.array(cropped_signals)))
     
-def create_annotations_df(file, df_type='general', fileList=False):
+def create_annotations_df(f, df_type='general', fileList=False, signal_labels_to_extract=None):
 
     if df_type == 'general':
         match_pattern = "[ctp]_([^\s_]+)_(start|stop)"
     else:
         match_pattern = "[cs]_([^\s_]+)_(start|stop)"
 
-    general = list(filter(lambda x : re.match(match_pattern, x[-1]), file["header"]["annotations"]))
+    general = list(filter(lambda x : re.match(match_pattern, x[-1]), f["header"]["annotations"]))
 
-    id_rows = {"set": [], "subject": [], "category": [], "sample_name": [],
+    id_rows = {"filename": [], "set": [], "subject": [], "category": [], "sample_name": [],
             "start_time": [], "stop_time": [],
              }
     
@@ -111,10 +111,11 @@ def create_annotations_df(file, df_type='general', fileList=False):
                 stop_time, _, _ = find_first_element(general[i:], lambda x: x[-1] == f"{t}_{sample}_stop")
                 if not fileList:
                     id += 1
-                    signals = crop_signals_array(start_time, stop_time, file)
+                    signals = crop_signals_array(start_time, stop_time, f)
                                             
+                    id_rows["filename"].append(Path(f["filepath"]).stem)
                     id_rows["set"].append(1)
-                    id_rows["subject"].append(Path(file["filepath"]).stem)
+                    id_rows["subject"].append(0)
                     id_rows["category"].append(cat)
                     id_rows["sample_name"].append(s[1])
                     id_rows["start_time"].append(start_time)
@@ -126,11 +127,12 @@ def create_annotations_df(file, df_type='general', fileList=False):
                         signal_rows["time"].append(sigs[0])
                         signal_rows["signal"].append(sigs[1])
                 else:
-                    # IMPLEMENT FILELIST METHOD
-                    signals = crop_signals_array(start_time, stop_time, file)
+                    id += 1
+                    signals = crop_signals_array(start_time, stop_time, f)
                                             
-                    id_rows["set"].append(1)
-                    id_rows["subject"].append(Path(file["filepath"]).stem)
+                    id_rows["filename"].append(Path(f["filepath"]).stem)
+                    id_rows["set"].append(f["set"])
+                    id_rows["subject"].append(f["subject"])
                     id_rows["category"].append(cat)
                     id_rows["sample_name"].append(s[1])
                     id_rows["start_time"].append(start_time)
@@ -147,8 +149,10 @@ def create_annotations_df(file, df_type='general', fileList=False):
     signals_df = pd.DataFrame(signal_rows)
     
     df = main_df.merge(signals_df, left_index=True, right_on='ann_id')
-     
-    return df
+    
+    if signal_labels_to_extract is None:
+        return df
+    return df[df.data_label.isin(signal_labels_to_extract)]
 
 def swallow_extend(row):
     time_start_idx = np.argwhere(row['time'] == row['BI_start_time'])[0][0]
@@ -273,7 +277,7 @@ def add_tsfresh_features(annotations_df):
     
 
 
-def save_directory_features_excel_files(file_list, output_path="data/xlsx/"):
+def save_directory_features_excel_files(file_list, csv=False, output_path="data/xlsx/", signal_labels_to_extract=None):
 
     dir_general_features = pd.DataFrame()
     dir_basic_swallow_features = pd.DataFrame()
@@ -282,14 +286,14 @@ def save_directory_features_excel_files(file_list, output_path="data/xlsx/"):
     for edf_file in file_list:
         if av.check_annotations(edf_file):
             # Create general features excel file
-            general_df = create_annotations_df(edf_file, 'general')
+            general_df = create_annotations_df(edf_file, 'general', fileList=csv, signal_labels_to_extract=signal_labels_to_extract)
             general_df_fe = add_basic_general_features(general_df)
             general_df_fe = add_tsfresh_features(general_df_fe)
             
             # Create baisc swallow features and tsfresh features excel files
-            swallows_df = create_annotations_df(edf_file, 'swallows')
+            swallows_df = create_annotations_df(edf_file, 'swallows', fileList=csv, signal_labels_to_extract=signal_labels_to_extract)
             basic_swallows_df_fe = add_basic_swallow_features(swallows_df.copy())
-            basic_swallows_df_fe = basic_swallows_df_fe
+            #basic_swallows_df_fe = basic_swallows_df_fe
             ts_fresh_swallows_df_fe = add_tsfresh_features(swallows_df)
             if general_df_fe is not None:
                 dir_general_features = pd.concat([dir_general_features, general_df_fe], axis=0)
