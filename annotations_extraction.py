@@ -277,7 +277,7 @@ def add_tsfresh_features(annotations_df):
     
 
 
-def save_directory_features_excel_files(file_list, csv=False, output_path="data/xlsx/", signal_labels_to_extract=None):
+def save_features_excel_files(file_list, csv=False, output_path="data/xlsx/", signal_labels_to_extract=None):
 
     dir_general_features = pd.DataFrame()
     dir_basic_swallow_features = pd.DataFrame()
@@ -307,10 +307,10 @@ def save_directory_features_excel_files(file_list, csv=False, output_path="data/
 
     if not dir_general_features.empty:
         dir_general_features.drop(['ann_id'], axis=1, inplace=True)
-        dir_general_features.to_excel(output_path + "general_features.xlsx", index=False)
+        dir_general_features.to_excel(output_path + "/general_features.xlsx", index=False)
     if not dir_basic_swallow_features.empty:
         dir_basic_swallow_features.drop(['data_label'], axis=1, inplace=True)
-        dir_basic_swallow_features.to_excel(output_path + "basic_swallow_features.xlsx", index=False)
+        dir_basic_swallow_features.to_excel(output_path + "/basic_swallow_features.xlsx", index=False)
     if not dir_tsfresh_swallow_features.empty:
         dir_tsfresh_swallow_features.drop(['ann_id'], axis=1, inplace=True)
-        dir_tsfresh_swallow_features.to_excel(output_path + "tsfresh_swallow_features.xlsx", index=False)
+        dir_tsfresh_swallow_features.to_excel(output_path + "/tsfresh_swallow_features.xlsx", index=False)

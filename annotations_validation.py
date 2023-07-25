@@ -7,16 +7,15 @@ def check_annotations(file: dict) -> bool:
     if any(map(lambda x : not re.match(match_pattern, x[-1]), annotations)):
         pattern_mismatches = [i for i, val in enumerate(map(lambda x : re.match(match_pattern, x[-1]), annotations)) if val is None]
         print(f"There are {len(pattern_mismatches)} annotations out of the pattern.")
-        #for idx in pattern_mismatches:
+        # for idx in pattern_mismatches:
         #    print(idx, file["header"]["annotations"][idx])
     
     if not annotations:
         print("There are no annotations in the file.")
         return False
     
-    elif check_C_annotations(list(filter(lambda x : re.match(r"c_\w+_\w+", x[-1]), annotations))):
-        if check_T_annotations(list(filter(lambda x : re.match(r"[spt]_", x[-1]), annotations))):
-            return True
+    elif check_C_annotations(file) and check_T_annotations(file):
+        return True
     return False
 
 def ann_time_to_string(time_seconds):
@@ -28,8 +27,10 @@ def ann_time_to_string(time_seconds):
     string = str(h) + ":" + str(m) + ":" + str(s)
     return string
 
-def check_T_annotations(T_ann_list):    
+def check_T_annotations(file):    
     check = True
+    T_ann_list = list(filter(lambda x : re.match(r"[tps]_([^\s_]+)_(start|stop)", x[-1]), file["header"]["annotations"]))
+    
     if T_ann_list:
         # check test annotations
         for i in range(0, len(T_ann_list)):
@@ -37,7 +38,7 @@ def check_T_annotations(T_ann_list):
             # check annotation format
             split_string = T_ann_list[i][2].split("_")
             if len(split_string) != 3:
-                print("Wrong Probe Annotation Format " + T_ann_list[i][2] + "t_<label>_start/stop required")
+                print(f"Wrong Annotation Format in file {file['filepath']} " + T_ann_list[i][2] + " t_<label>_start/stop required.")
 
             # check if stop annotation is available for start annotation
             if "start" in T_ann_list[i][2]:
@@ -52,7 +53,7 @@ def check_T_annotations(T_ann_list):
                     check = False
                     time = T_ann_list[i][0]
                     time_string = ann_time_to_string(time)
-                    print("No Stop For Test " + ann_start + " " + time_string)
+                    print("No Stop For " + ann_start + " " + time_string + f" in File {file['filepath']}")
 
             # check if start annotation is available for stop annotation
             if "stop" in T_ann_list[i][2]:
@@ -69,22 +70,23 @@ def check_T_annotations(T_ann_list):
                     check = False
                     time = T_ann_list[i][0]
                     time_string = ann_time_to_string(time)
-                    print("No Start For Test " + ann_stop + " " + time_string)
+                    print("No Start For " + ann_stop + " " + time_string + f" in File {file['filepath']}")
 
     return check
 
-def check_C_annotations(C_ann_list):
-
+def check_C_annotations(file):
     # check category annotations
     i = 0
     check = True
+    C_ann_list = list(filter(lambda x : re.match(r"c_([^\s_]+)_(start|stop)", x[-1]), file["header"]["annotations"]))
+    
     if C_ann_list:
         while i < len(C_ann_list)-1:
 
             # check annotation format
             split_string = C_ann_list[i][2].split("_")
             if len(split_string) != 3:
-                print("Wrong Category Annotation Format " + C_ann_list[i][2] + "c_<label>_start/stop required")
+                print(f"Wrong Category Annotation Format in file {file['filepath']} " + C_ann_list[i][2] + "c_<label>_start/stop required")
 
             if "start" in C_ann_list[i][2] and "stop" in C_ann_list[i+1][2]:
                 ann1 = C_ann_list[i][2]
@@ -95,15 +97,15 @@ def check_C_annotations(C_ann_list):
                     time_string_1 = ann_time_to_string(C_ann_list[i][0])
                     time_string_2 = ann_time_to_string(C_ann_list[i+1][0])
 
-                    print("Category Mismatch for " + C_ann_list[i][2] + " at " + time_string_1 +
-                        " and " + C_ann_list[i+1][2] + " at " + time_string_2)
+                    print(f"Category Mismatch For " + C_ann_list[i][2] + " at " + time_string_1 +
+                        " and " + C_ann_list[i+1][2] + " at " + time_string_2 + f" in File {file['filepath']}")
                     check = False
 
                 i = i + 2
 
             elif "start" in C_ann_list[i][2] and "stop" not in C_ann_list[i + 1][2]:
                 time_string = ann_time_to_string(C_ann_list[i][0])
-                print("Missing Stop Annotations for " + C_ann_list[i][2] + " at " + time_string)
+                print("Missing Stop Annotations For " + C_ann_list[i][2] + " at " + time_string + f" in File {file['filepath']}")
                 check = False
                 i = i + 1
 

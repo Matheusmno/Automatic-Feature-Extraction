@@ -5,7 +5,7 @@ import pandas as pd
 import numpy as np
 
 
-def read_files_from_dir(directory: Path, load_files:bool=True):
+def read_files_from_dir(directory:str, load_files:bool=True):
     extensions = ["edf", "bdf"]
     files = []
 
@@ -30,14 +30,14 @@ def read_files_from_dir(directory: Path, load_files:bool=True):
                 
     return files
 
-def read_files_from_csv_filelist(filelist: Path, load_files:bool=True):
+def read_files_from_csv_filelist(data_root_path:str, csv_filelist_path:str, load_files:bool=True):
     extensions = ["edf", "bdf"]
     files = []
-    filelist = pd.read_csv(filelist)
+    filelist = pd.read_csv(csv_filelist_path)
 
     for _, file in filelist.iterrows():
         if load_files:
-            filepath = file.Files
+            filepath = data_root_path + file.Files
             signals, signal_headers, header = pyedflib.highlevel.read_edf(filepath)
             file = {"filepath": filepath,
             "signals": signals,
