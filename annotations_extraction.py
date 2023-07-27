@@ -9,7 +9,7 @@ import pandas as pd
 
 from tsfresh import extract_features
 from tsfresh.utilities.dataframe_functions import impute
-from tsfresh.feature_extraction import EfficientFCParameters, MinimalFCParameters
+from tsfresh.feature_extraction import EfficientFCParameters
 
 def add_swallow_annotations(f, output_path:str="data/annotated/"):
     
@@ -314,3 +314,20 @@ def save_features_excel_files(file_list, csv=False, output_path="data/xlsx/", si
     if not dir_tsfresh_swallow_features.empty:
         dir_tsfresh_swallow_features.drop(['ann_id'], axis=1, inplace=True)
         dir_tsfresh_swallow_features.to_excel(output_path + "/tsfresh_swallow_features.xlsx", index=False)
+        
+def extract_features_from_filelist(filelist_csv_path: str, data_root_path: str, output_path=None, signal_labels_to_extract=['BI1', 'EMG1']):
+    if output_path is None:
+        output_path = data_root_path + "data/features"
+    files = EDF_wrapper.read_files_from_csv_filelist(data_root_path, filelist_csv_path)
+    os.makedirs(output_path, exist_ok=True)
+    save_features_excel_files(files, csv=True, output_path=output_path,
+                                    signal_labels_to_extract=signal_labels_to_extract)
+    
+def extract_features_from_folder(folder_path: str, output_path=None, signal_labels_to_extract=['BI1', 'EMG1']):
+    if output_path is None:
+        output_path = "data/features"
+    files = EDF_wrapper.read_files_from_dir(folder_path)
+    os.makedirs(output_path, exist_ok=True)
+    save_features_excel_files(files, output_path=output_path,
+                                    signal_labels_to_extract=signal_labels_to_extract
+                                    )
